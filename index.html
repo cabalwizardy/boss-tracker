@@ -1,0 +1,136 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Cabal Boss Tracker · Online</title>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<style>
+:root{--bg:#0c1119;--panel:#172333;--line:#294765;--text:#e9f2ff;--muted:#9db1c8;--blue:#55a8ff;--green:#00d45a;--yellow:#ffd83d;--red:#ff5968}
+*{box-sizing:border-box}body{margin:0;background:var(--bg);color:var(--text);font:14px/1.4 Arial,sans-serif}
+header{text-align:center;padding:17px 12px;background:#101a28;border-bottom:1px solid var(--line)}h1{margin:0;color:var(--blue);font-size:25px;text-shadow:0 0 12px #238cff88}header p{margin:4px 0;color:#c6dcf4}
+button{border:1px solid #47749e;border-radius:7px;padding:8px 11px;background:#203b59;color:white;font-weight:bold;cursor:pointer}button:hover{filter:brightness(1.16)}button:disabled{opacity:.5;cursor:wait}.primary{background:#1479db}.green{background:#087b3a}.red{background:#a92738}.toolbar{display:flex;gap:8px;justify-content:center;flex-wrap:wrap;padding:11px}
+main{max-width:1500px;margin:auto;padding:0 12px 24px}.panel{background:var(--panel);border:1px solid var(--line);border-radius:10px;padding:13px;margin:12px auto}.auth{max-width:520px;margin:28px auto}.row{display:flex;gap:9px;flex-wrap:wrap;align-items:end}.field{display:flex;flex-direction:column;gap:4px;color:var(--muted);font-size:12px;flex:1;min-width:150px}.field input{width:100%}input{background:#0d1724;color:var(--text);border:1px solid #42617f;border-radius:5px;padding:9px;min-width:0}
+#app{display:none}.roombar{display:flex;gap:10px;align-items:center;justify-content:space-between;flex-wrap:wrap}.muted{color:var(--muted)}.status{font-size:12px;color:#7ee6a4}.table-wrap{overflow:auto;border:1px solid var(--line);border-radius:9px;box-shadow:0 0 16px #2365a533}table{width:100%;border-collapse:collapse;min-width:820px}th{background:#20364e;color:var(--blue);text-align:left;padding:9px}td{padding:6px 8px;border-top:1px solid var(--line);background:#182637}tr:nth-child(even) td{background:#142130}td:first-child{text-align:center;width:62px}.boss-cell{display:flex;align-items:center;gap:5px;flex-wrap:wrap}.spawn-check{display:inline-flex;align-items:center;gap:4px;font-size:11px;color:var(--muted);white-space:nowrap}.spawn-check input{width:15px;height:15px;accent-color:#00c94f;cursor:pointer}.spawn-check input:disabled{cursor:not-allowed}.timer{font-weight:bold;font-variant-numeric:tabular-nums;background:#00c94f;color:#04140a;border-radius:4px;padding:4px 7px;min-width:66px;text-align:center}.timer.soon{background:#ffcf35;color:#171000}.timer.ready{background:#ff5968;color:#fff}.channel-number{display:inline-block;min-width:24px;font-weight:bold}.channel-number.blink{animation:channelBlink .65s steps(2,start) infinite;color:#ff5968;text-shadow:0 0 9px #ff5968}.timer.alarm-blink{animation:timerAlarmBlink .65s steps(2,start) infinite;box-shadow:0 0 14px #ff5968,0 0 24px #ff596888}@keyframes channelBlink{to{visibility:hidden}}@keyframes timerAlarmBlink{to{visibility:hidden}}.time-input{width:78px;padding:6px}.mini{padding:6px 7px;font-size:11px}.next{display:grid;gap:7px;margin:12px auto;max-width:1000px}.next-item{padding:10px;border-radius:7px;background:#00c94f;color:#03150a;text-align:center;font-weight:bold}.bottom{display:flex;gap:10px;flex-wrap:wrap}.bottom .panel{flex:1;min-width:270px;margin:0}.log-list{max-height:220px;overflow:auto;color:var(--muted);font-size:12px}.log-list div{padding:5px 0;border-bottom:1px solid #29476566}.config{display:flex;gap:12px;align-items:end;flex-wrap:wrap}.config .field{max-width:180px}.hidden{display:none!important}.msg{padding:9px;border-radius:6px;background:#3b2430;color:#ffdce1;margin:8px 0}.success{background:#123a29;color:#b8ffd1}
+@media(max-width:600px){h1{font-size:19px}main{padding:0 7px 18px}.panel{padding:10px}}
+</style></head>
+<body>
+<header><h1>Boss Tracker - Cabal Online</h1><p>Shared tracker · Wolf & Enthuid · 30 channels</p></header>
+<main>
+<section id="authPanel" class="panel auth">
+<h2>Player Login</h2><p class="muted">Log in or create an account to access your shared room.</p>
+<div class="field"><label>Username</label><input id="username" type="text" placeholder="" autocomplete="username" maxlength="20"></div><br>
+<div class="field"><label>Password</label><input id="password" type="password" placeholder="At least 6 characters" autocomplete="current-password"></div>
+<div class="toolbar"><button class="primary" id="loginBtn">Log In</button><button id="signupBtn">Create Account</button></div>
+<div id="authMsg" aria-live="polite"></div>
+</section>
+<section id="roomPanel" class="panel hidden">
+<div class="roombar"><div><b>Shared Rooms</b><div class="muted">Create a new room or join one using an invitation code.</div></div><button class="red" id="logoutBtn">Log Out</button></div>
+<div class="row" style="margin-top:12px">
+<div class="field"><label>New Room Name</label><input id="roomName" placeholder="My Cabal Group"></div><button class="green" id="createRoomBtn">Create Room</button>
+<div class="field"><label>Invitation Code</label><input id="inviteCode" placeholder="e.g. A1B2C3D4"></div><button class="primary" id="joinRoomBtn">Join</button>
+</div><div id="roomMsg"></div><div id="myRooms" class="muted" style="margin-top:10px"></div>
+</section>
+<section id="app">
+<div class="panel roombar"><div><b id="roomTitle">Boss Tracker</b><div class="muted">Invitation code: <strong id="roomCode"></strong> · <span id="connection" class="status">Connecting…</span></div></div><div class="row"><button id="copyCodeBtn">Copy Code</button><button id="switchRoomBtn">Switch Room</button><button class="red" id="signOutBtn">Sign Out</button></div></div>
+<div class="panel config">
+<div class="field"><label>Wolf Respawn (minutes)</label><input id="wolfRespawn" type="number" min="1" value="180"></div>
+<div class="field"><label>Enthuid Respawn (minutes)</label><input id="enthRespawn" type="number" min="1" value="180"></div>
+<button class="green" id="saveSettings">Save Settings</button>
+<button id="soundBtn">Sound: On</button><button id="notifyBtn">Enable Notifications</button><button id="themeBtn">Light Mode</button>
+</div>
+<div class="table-wrap"><table><thead><tr><th>Channel</th><th>Wolf</th><th>Enthuid</th></tr></thead><tbody id="rows"></tbody></table></div>
+<div class="next" id="nextList"></div>
+<div class="bottom" style="margin-top:12px">
+<div class="panel"><h3>Statistics</h3><div id="stats">Loading…</div></div>
+<div class="panel"><h3>Spawn Log</h3><button id="exportBtn">Export Log</button><div class="log-list" id="logs"></div></div>
+</div></section>
+</main>
+<script>
+const SUPABASE_URL="https://vuamxuxiftgebvcxibif.supabase.co";
+const SUPABASE_ANON_KEY="sb_publishable_WUwECL8UnP-3LTMFNwDSlw_JS5Tt69H";
+const KEY='cabalOnlinePrefs_v1';
+const $=id=>document.getElementById(id), names=['wolf','enthuid'];
+let sb=null,user=null,room=null,roomCode='',timers={},checks={},logs=[],settings={wolf:180,enthuid:180},sound=true,light=false,notifyGranted=false,channel=null;
+const handledExpired=new Set(),channelBlinkUntil={},alarmPlayed=new Set(),activeExpiryAlarms=new Set();
+let audioContext=null,alarmLoop=null;
+const configured=()=>SUPABASE_URL.startsWith('https://')&&!SUPABASE_URL.includes('PEGA_AQUI')&&SUPABASE_ANON_KEY.length>30&&!SUPABASE_ANON_KEY.includes('PEGA_AQUI');
+function say(id,msg,ok=false){$(id).innerHTML=msg?`<div class="msg ${ok?'success':''}">${msg}</div>`:''}
+function parseTime(v){let p=v.trim().split(':');if(p.length!==2||!p.every(x=>/^\d+$/.test(x)))return null;let m=+p[0],s=+p[1];return s>59||m<0?null:(m*60+s)*1000}
+function fmt(ms){let n=Math.max(0,Math.ceil(ms/1000));return String(Math.floor(n/60)).padStart(2,'0')+':'+String(n%60).padStart(2,'0')}
+function esc(s){return String(s??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]))}
+function prefsLoad(){try{let p=JSON.parse(localStorage.getItem(KEY)||'{}');sound=p.sound??true;light=p.light??false}catch(e){}}
+function prefsSave(){localStorage.setItem(KEY,JSON.stringify({sound,light}))}
+function showAuth(){ $('authPanel').style.display='block';$('roomPanel').classList.add('hidden');$('app').style.display='none'}
+function showRooms(){ $('authPanel').style.display='none';$('roomPanel').classList.remove('hidden');$('app').style.display='none';loadRooms()}
+function showApp(){ $('authPanel').style.display='none';$('roomPanel').classList.add('hidden');$('app').style.display='block';applyTheme();render()}
+async function authInit(){if(!configured()){say('authMsg','First, configure SUPABASE_URL and SUPABASE_ANON_KEY in this file. Follow the SQL/setup guide.');return}sb=window.supabase.createClient(SUPABASE_URL,SUPABASE_ANON_KEY,{auth:{persistSession:true,autoRefreshToken:true}});const {data:{session}}=await sb.auth.getSession();if(session){user=session.user;showRooms()}sb.auth.onAuthStateChange((_event,session)=>{user=session?.user||null;if(user&&!room)showRooms();if(!user){room=null;showAuth()}})}
+async function login(signup){
+  const username=$('username').value.trim().toLowerCase();
+  const password=$('password').value;
+  if(!/^[a-z0-9_]{3,20}$/.test(username)){
+    say('authMsg','Username must be 3–20 characters and contain only letters, numbers, or underscores.');return;
+  }
+  if(password.length<6){say('authMsg','Password must be at least 6 characters.');return}
+  // Supabase Auth requiere un identificador tipo email para email/password.
+  // An internal email address is derived from the username; no emails are sent.
+  const email=username+'@cabal-boss-tracker.com';
+  const res=signup
+    ? await sb.auth.signUp({email,password,options:{data:{username}}})
+    : await sb.auth.signInWithPassword({email,password});
+  if(res.error){say('authMsg',esc(res.error.message));return}
+  if(signup&&!res.data.session){
+    say('authMsg','Account created, but Supabase still requires email confirmation. Disable Confirm email in Authentication and try again.',false);return;
+  }
+  user=res.data.user;say('authMsg','Login successful. Welcome, '+esc(username)+'!',true);showRooms();
+}
+async function loadRooms(){if(!user)return;let {data,error}=await sb.from('room_members').select('room_id, rooms(id,name,invite_code)').eq('user_id',user.id);if(error){say('roomMsg',esc(error.message));return}let rooms=(data||[]).map(x=>x.rooms).filter(Boolean);$('myRooms').innerHTML=rooms.length?'Your rooms: '+rooms.map(r=>`<button class="mini" onclick="openRoom('${r.id}')">${esc(r.name)}</button>`).join(' '):'You have not joined any rooms yet.'}
+async function createRoom(){let name=$('roomName').value.trim()||'Cabal Boss Room';let {data,error}=await sb.rpc('create_shared_room',{p_name:name});if(error){say('roomMsg',esc(error.message));return}let r=Array.isArray(data)?data[0]:data;if(!r?.room_id){say('roomMsg','Could not create the room.');return}await openRoom(r.room_id)}
+async function joinRoom(){let code=$('inviteCode').value.trim().toUpperCase();if(!code){say('roomMsg','Enter the invitation code.');return}let {data,error}=await sb.rpc('join_shared_room',{p_invite_code:code});if(error){say('roomMsg',esc(error.message));return}await openRoom(data)}
+async function openRoom(id){let {data:r,error}=await sb.from('rooms').select('id,name,invite_code').eq('id',id).single();if(error){say('roomMsg',esc(error.message));return}room=r;roomCode=r.invite_code;await loadRoomData();showApp();subscribe();say('roomMsg','')}
+async function loadRoomData(){let [t,l,s,c]=await Promise.all([sb.from('boss_timers').select('*').eq('room_id',room.id),sb.from('boss_logs').select('*').eq('room_id',room.id).order('appeared_at',{ascending:false}).limit(300),sb.from('boss_settings').select('*').eq('room_id',room.id),sb.from('boss_checks').select('*').eq('room_id',room.id)]);for(let x of [t,l,s,c])if(x.error)console.error(x.error);timers={};(t.data||[]).forEach(x=>timers[x.channel+'_'+x.boss]=x);checks={};(c.data||[]).forEach(x=>checks[x.channel+'_'+x.boss]=x);logs=l.data||[];settings={wolf:180,enthuid:180};(s.data||[]).forEach(x=>settings[x.boss]=x.respawn_minutes);$('wolfRespawn').value=settings.wolf;$('enthRespawn').value=settings.enthuid;$('roomTitle').textContent=room.name;$('roomCode').textContent=roomCode;render()}
+function subscribe(){if(channel)sb.removeChannel(channel);channel=sb.channel('room-'+room.id).on('postgres_changes',{event:'*',schema:'public',table:'boss_timers',filter:'room_id=eq.'+room.id},()=>loadRoomData()).on('postgres_changes',{event:'*',schema:'public',table:'boss_logs',filter:'room_id=eq.'+room.id},()=>loadRoomData()).on('postgres_changes',{event:'*',schema:'public',table:'boss_settings',filter:'room_id=eq.'+room.id},()=>loadRoomData()).on('postgres_changes',{event:'*',schema:'public',table:'boss_checks',filter:'room_id=eq.'+room.id},()=>loadRoomData()).subscribe(status=>$('connection').textContent=status==='SUBSCRIBED'?'● Live':'● '+status)}
+function cell(ch,b){let k=ch+'_'+b,t=timers[k],left=t?Math.max(0,new Date(t.ends_at).getTime()-Date.now()):null,cls=!t?'':left===0?'ready':left<900000?'soon':'',checked=!!(t&&checks[k]?.checked);return `<div class="boss-cell"><span class="timer ${cls}" id="display_${k}">${t?fmt(left):'--:--'}</span><label class="spawn-check" title="Mark that this boss has appeared"><input type="checkbox" ${checked?'checked':''} ${t?'':'disabled'} onchange="toggleCheck(${ch},'${b}',this.checked)">Appeared</label><input class="time-input" id="input_${k}" placeholder="182:04" aria-label="Time"><button class="mini primary" onclick="manualStart(${ch},'${b}')">Start</button><button class="mini green" onclick="spawn(${ch},'${b}')">Spawned</button><button class="mini" onclick="clearTimer(${ch},'${b}')">×</button></div>`}
+function render(){if(!room)return;let h='';for(let ch=1;ch<=30;ch++)h+=`<tr><td><span class="channel-number" id="channel_${ch}">${ch}</span></td><td>${cell(ch,'wolf')}</td><td>${cell(ch,'enthuid')}</td></tr>`;$('rows').innerHTML=h;$('wolfRespawn').value=settings.wolf;$('enthRespawn').value=settings.enthuid;update()}
+async function resetAppearanceCheck(ch,b,endsAt){let row={room_id:room.id,channel:ch,boss:b,timer_ends_at:endsAt,checked:false,updated_by:user.id};let {error}=await sb.from('boss_checks').upsert(row,{onConflict:'room_id,channel,boss'});if(error)console.error('Could not reset appearance check:',error);else checks[ch+'_'+b]={...row}}
+async function upsertTimer(ch,b,ms,mode){let now=new Date(),end=new Date(Date.now()+ms);let row={room_id:room.id,channel:ch,boss:b,started_at:now.toISOString(),ends_at:end.toISOString(),mode,updated_by:user.id};let {error}=await sb.from('boss_timers').upsert(row,{onConflict:'room_id,channel,boss'});if(error)alert('Could not save timer: '+error.message);else{await resetAppearanceCheck(ch,b,end.toISOString());await loadRoomData()}}
+async function manualStart(ch,b){let ms=parseTime($('input_'+ch+'_'+b).value);if(ms===null){alert('Use minutes:seconds format, for example 182:04.');return}await upsertTimer(ch,b,ms,'manual')}
+async function spawn(ch,b){let mins=Number(settings[b]);if(mins<1)return alert('Set a valid respawn time.');let now=new Date(),end=new Date(Date.now()+mins*60000);let [a,c]=await Promise.all([sb.from('boss_timers').upsert({room_id:room.id,channel:ch,boss:b,started_at:now.toISOString(),ends_at:end.toISOString(),mode:'auto',updated_by:user.id},{onConflict:'room_id,channel,boss'}),sb.from('boss_logs').insert({room_id:room.id,channel:ch,boss:b,respawn_minutes:mins,user_id:user.id})]);if(a.error||c.error){alert('Error recording spawn: '+(a.error||c.error).message);return}await resetAppearanceCheck(ch,b,end.toISOString());beep();if(notifyGranted)new Notification('Boss Spawn Recorded',{body:`${b==='wolf'?'Wolf':'Enthuid'} spawned in channel ${ch}`});await loadRoomData()}
+async function autoRestart(ch,b,t){
+  const key=ch+'_'+b+'_'+t.ends_at;
+  if(handledExpired.has(key))return;
+  handledExpired.add(key);
+  const mins=Number(settings[b]);
+  if(!Number.isFinite(mins)||mins<1)return;
+  // Persist the exact expired cycle BEFORE restarting the timer. Otherwise the
+  // timer update/reload can win a race and lose the 10-second alarm window.
+  const k=ch+'_'+b, currentCheck=checks[k];
+  if(!currentCheck||new Date(currentCheck.timer_ends_at).getTime()!==new Date(t.ends_at).getTime()){
+    const expiryCheck={room_id:room.id,channel:ch,boss:b,timer_ends_at:t.ends_at,checked:false,updated_by:user.id};
+    const {error:checkError}=await sb.from('boss_checks').upsert(expiryCheck,{onConflict:'room_id,channel,boss'});
+    if(checkError){console.error('Could not save expired boss check before restart:',checkError);handledExpired.delete(key);return;}
+    checks[k]=expiryCheck;
+  }
+  const now=new Date(),end=new Date(now.getTime()+mins*60000);
+  // Compare-and-set: only one connected player can restart this expired timer.
+  const {data,error}=await sb.from('boss_timers').update({started_at:now.toISOString(),ends_at:end.toISOString(),mode:'auto',updated_by:user.id})
+    .eq('room_id',room.id).eq('channel',ch).eq('boss',b).eq('ends_at',t.ends_at).select('ends_at');
+  if(error){console.error('Automatic timer restart failed:',error);return;}
+  if(data&&data.length)await loadRoomData();
+}
+async function toggleCheck(ch,b,checked){let k=ch+'_'+b,t=timers[k];if(!t)return;let marker=checks[k]?.timer_ends_at||t.ends_at;let {error}=await sb.from('boss_checks').upsert({room_id:room.id,channel:ch,boss:b,timer_ends_at:marker,checked,updated_by:user.id},{onConflict:'room_id,channel,boss'});if(error){alert('Could not update appearance check: '+error.message);await loadRoomData()}else{checks[k]={...(checks[k]||{}),timer_ends_at:marker,checked};update()}}
+async function clearTimer(ch,b){let {error}=await sb.from('boss_timers').delete().eq('room_id',room.id).eq('channel',ch).eq('boss',b);if(error)alert(error.message);else await loadRoomData()}
+async function saveSettings(){let w=+$('wolfRespawn').value,e=+$('enthRespawn').value;if(w<1||e<1)return alert('Respawn times must be greater than zero.');for(let [boss,n] of [['wolf',w],['enthuid',e]]){let {error}=await sb.from('boss_settings').upsert({room_id:room.id,boss,respawn_minutes:n,updated_by:user.id},{onConflict:'room_id,boss'});if(error)return alert(error.message)}settings={wolf:w,enthuid:e};alert('Shared settings saved.')}
+function update(){if(!room)return;let next=[];const now=Date.now();activeExpiryAlarms.clear();for(let ch=1;ch<=30;ch++){let channelNeedsBlink=false;for(let b of names){let k=ch+'_'+b,t=timers[k],el=$('display_'+k);if(!el)continue;if(!t){el.textContent='--:--';el.className='timer';continue}let left=Math.max(0,new Date(t.ends_at).getTime()-now),check=checks[k],sameCycle=!!(check&&new Date(check.timer_ends_at).getTime()===new Date(t.ends_at).getTime());if(left===0&&(!check||!sameCycle)){const expiryKey=k+'_'+t.ends_at;if(!handledExpired.has('check_'+expiryKey)){handledExpired.add('check_'+expiryKey);check={room_id:room.id,channel:ch,boss:b,timer_ends_at:t.ends_at,checked:false,updated_by:user.id};checks[k]=check;sb.from('boss_checks').upsert(check,{onConflict:'room_id,channel,boss'}).then(({error})=>{if(error)console.error('Could not mark pending appearance:',error)});const box=el.parentElement?.querySelector('.spawn-check input');if(box)box.checked=false}}let acknowledged=!!checks[k]?.checked;let expiryAt=checks[k]?.timer_ends_at?new Date(checks[k].timer_ends_at).getTime():NaN;let pending=!acknowledged&&Number.isFinite(expiryAt)&&now>=expiryAt&&now<expiryAt+10000;el.textContent=fmt(left);el.className='timer '+(pending?'ready alarm-blink':left===0?'ready':left<900000?'soon':'');if(pending){channelNeedsBlink=true;activeExpiryAlarms.add(k)}if(left===0)autoRestart(ch,b,t);else next.push({ch,b,left})}let channelEl=$('channel_'+ch);if(channelEl)channelEl.classList.toggle('blink',channelNeedsBlink)}if(activeExpiryAlarms.size)startExpiryAlarm();else stopExpiryAlarm();next.sort((a,b)=>a.left-b.left);$('nextList').innerHTML=next.slice(0,5).map(x=>`<div class="next-item">Channel ${x.ch} · Boss ${x.b==='wolf'?'Wolf':'Enthuid'} · Time Left ${fmt(x.left)}</div>`).join('')||'<div class="muted">No active timers.</div>';$('stats').textContent=`Spawns: ${logs.length} · Wolf: ${logs.filter(x=>x.boss==='wolf').length} · Enthuid: ${logs.filter(x=>x.boss==='enthuid').length}`;$('logs').innerHTML=logs.slice(0,60).map(x=>`<div>${new Date(x.appeared_at).toLocaleString()} — Channel ${x.channel}, ${x.boss==='wolf'?'Wolf':'Enthuid'} — respawn ${x.respawn_minutes} min</div>`).join('')||'No spawn records yet.'}
+
+function getAudioContext(){const AudioCtx=window.AudioContext||window.webkitAudioContext;if(!AudioCtx)return null;if(!audioContext)audioContext=new AudioCtx();if(audioContext.state==='suspended')audioContext.resume().catch(()=>{});return audioContext}
+function playExpiryAlarm(){if(!sound||!activeExpiryAlarms.size)return;try{const c=getAudioContext();if(!c)return;const now=c.currentTime;[880,660,880].forEach((frequency,i)=>{const start=now+i*.24,o=c.createOscillator(),g=c.createGain();o.type='square';o.frequency.setValueAtTime(frequency,start);g.gain.setValueAtTime(.0001,start);g.gain.exponentialRampToValueAtTime(.11,start+.025);g.gain.setValueAtTime(.11,start+.16);g.gain.exponentialRampToValueAtTime(.0001,start+.21);o.connect(g);g.connect(c.destination);o.start(start);o.stop(start+.22)})}catch(e){}}
+function startExpiryAlarm(){if(!sound||!activeExpiryAlarms.size)return;if(!alarmLoop){playExpiryAlarm();alarmLoop=setInterval(playExpiryAlarm,950)}}
+function stopExpiryAlarm(){if(alarmLoop){clearInterval(alarmLoop);alarmLoop=null}}
+function beep(){if(!sound)return;try{const c=getAudioContext();if(!c)return;const o=c.createOscillator(),g=c.createGain();o.connect(g);g.connect(c.destination);g.gain.value=.035;o.start();o.stop(c.currentTime+.12)}catch(e){}}
+function applyTheme(){let l=light;document.body.style.setProperty('--bg',l?'#edf3f9':'#0c1119');document.body.style.setProperty('--panel',l?'#fff':'#172333');document.body.style.setProperty('--text',l?'#172333':'#e9f2ff');document.body.style.setProperty('--line',l?'#b8c9da':'#294765');$('themeBtn').textContent=l?'Dark Mode':'Light Mode';$('soundBtn').textContent='Sound: '+(sound?'On':'Off')}
+$('loginBtn').onclick=()=>login(false);$('signupBtn').onclick=()=>login(true);$('createRoomBtn').onclick=createRoom;$('joinRoomBtn').onclick=joinRoom;$('logoutBtn').onclick=$('signOutBtn').onclick=async()=>{if(channel)await sb.removeChannel(channel);room=null;await sb.auth.signOut();showAuth()};$('switchRoomBtn').onclick=()=>{if(channel)sb.removeChannel(channel);room=null;showRooms()};$('saveSettings').onclick=saveSettings;
+$('copyCodeBtn').onclick=()=>navigator.clipboard.writeText(roomCode).then(()=>alert('Code copied.'));$('soundBtn').onclick=()=>{sound=!sound;if(sound)getAudioContext();else stopExpiryAlarm();prefsSave();applyTheme()};$('themeBtn').onclick=()=>{light=!light;prefsSave();applyTheme()};$('notifyBtn').onclick=async()=>{if(!('Notification'in window))return alert('Notifications are not available.');notifyGranted=await Notification.requestPermission()==='granted';$('notifyBtn').textContent=notifyGranted?'Notifications Enabled':'Enable Notifications'};
+$('exportBtn').onclick=()=>{let blob=new Blob([JSON.stringify(logs,null,2)],{type:'application/json'}),a=document.createElement('a');a.href=URL.createObjectURL(blob);a.download='cabal-boss-logs.json';a.click();URL.revokeObjectURL(a.href)};
+prefsLoad();applyTheme();if(configured())authInit();else say('authMsg','To enable the online connection, configure both Supabase keys in this file and run the included SQL script.');setInterval(update,500);
+window.openRoom=openRoom;window.manualStart=manualStart;window.spawn=spawn;window.clearTimer=clearTimer;window.toggleCheck=toggleCheck;
+</script></body></html>
